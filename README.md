@@ -72,34 +72,40 @@ Two evaluation frameworks:
 | Model | RMSE | MAE | QLIKE | OOS R² |
 |---|---|---|---|---|
 | HAR-RV | 0.0280 | 0.0196 | 1.407 | -0.089 |
-| XGB_HAR | 0.0283 | 0.0182 | 1.411 | -0.107 |
-| XGB_FULL | 0.0274 | 0.0170 | 1.672 | -0.040 |
+| XGB_HAR | 0.0275 | 0.0187 | 1.379 | -0.051 |
+| XGB_FULL | 0.0267 | 0.0172 | 1.346 | **+0.010** |
 
 ### Walk-Forward Evaluation (Expanding Window, Step=21)
 
 | Model | RMSE | MAE | QLIKE | OOS R² |
 |---|---|---|---|---|
-| HAR-RV | 0.0509 | 0.0272 | **1.114** | **+0.005** |
-| XGB_HAR | 0.0521 | 0.0296 | 14.98 | -0.043 |
-| XGB_FULL | 0.0527 | 0.0281 | 14.78 | -0.069 |
+| HAR-RV | 0.0509 | 0.0272 | 1.114 | +0.005 |
+| XGB_HAR | 0.0505 | 0.0262 | 1.155 | +0.020 |
+| XGB_FULL | 0.0479 | 0.0263 | **1.047** | **+0.116** |
 
 ### Diebold-Mariano Tests
 
-All pairwise DM tests show **no statistically significant difference** between models (p > 0.05) under both evaluation frameworks. The accuracy differences are real but not large enough to reject the null of equal predictive accuracy given the sample size.
+| Comparison | Static Split (p-value) | Walk-Forward (p-value) |
+|---|---|---|
+| HAR-RV vs XGB_HAR | 0.072 (not significant) | 0.966 (not significant) |
+| HAR-RV vs XGB_FULL | **0.0004** (XGB_FULL significantly more accurate) | 0.356 (not significant) |
+| XGB_HAR vs XGB_FULL | 0.022 (XGB_FULL significantly more accurate) | 0.740 (not significant) |
+
+In the static split, XGB_FULL's edge over HAR-RV is statistically significant at the 1% level. In the walk-forward test — the more realistic, lookahead-bias-free evaluation — that same edge persists in magnitude but is no longer statistically significant.
 
 ---
 
 ## Key Findings
 
-1. **HAR-RV is the best model by QLIKE and OOS R²** in the walk-forward evaluation, which is the more rigorous test. It achieves a positive OOS R² (0.005), meaning it beats the naive mean forecast — while both XGBoost variants are negative.
+1. **XGB_FULL has the best point-forecast accuracy in both evaluations.** It posts the lowest RMSE, QLIKE, and highest OOS R² in both the static split (R² = +0.010) and the walk-forward backtest (R² = +0.116), where HAR-RV is barely positive (R² = +0.005).
 
-2. **XGBoost does not beat HAR-RV** despite having more flexibility and an additional feature (VIX). This is consistent with the established literature: the volatility clustering structure captured by HAR-RV's linear lags is the dominant signal, and XGBoost overfits to noise in the training data rather than learning a more general pattern.
+2. **HAR-RV is hard to beat statistically.** Despite XGB_FULL's numerical lead, the Diebold-Mariano test only confirms a significant difference in the static 80/20 split (p = 0.0004). Under walk-forward evaluation, the same comparison is no longer significant (p = 0.356) — the apparent edge shrinks once the model is forced to re-train sequentially on expanding windows instead of a single fixed split.
 
-3. **VIX adds marginal value in the static split** (XGB_FULL has the best RMSE and MAE in the static test) but hurts in the walk-forward evaluation. This suggests the VIX relationship is non-stationary and the model learns a regime-specific association that doesn't generalize across time.
+3. **The static vs. walk-forward comparison is the reason this project runs two backtests.** A single train/test split overstates confidence in XGBoost's advantage; the walk-forward design, which better simulates real deployment and avoids lookahead bias, is more conservative and shows the gap is not yet statistically reliable.
 
-4. **XGBoost systematically underestimates volatility on quiet days** (QLIKE of ~15 vs HAR-RV's ~1.1 in rolling eval). QLIKE heavily penalizes underestimation of large RV events, which is exactly what matters in risk management. This is XGBoost's key failure mode here.
+4. **VIX is the main source of XGBoost's edge.** XGB_FULL (HAR features + VIX) consistently outperforms XGB_HAR (HAR features only) in both backtests, suggesting implied volatility carries real incremental signal over the HAR lags alone — though per finding #2, that signal isn't strong enough yet to statistically dominate HAR-RV.
 
-5. **No statistically significant winner** — the Diebold-Mariano tests cannot reject equal predictive accuracy. The sample is ~95 walk-forward predictions, which limits statistical power. A longer evaluation window or higher-frequency data would sharpen these tests.
+5. **Sample size limits statistical power.** The walk-forward evaluation produces roughly 95 predictions (step=21 over ~2,500 trading days). A longer history, higher-frequency re-fitting (step=1), or higher-frequency intraday data would sharpen these significance tests.
 
 ---
 
